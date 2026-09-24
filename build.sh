@@ -1,7 +1,7 @@
 #!/bin/bash
-# Builds ClaudeUsageBar.app.
+# Builds "Claude Usage Bar.app".
 #
-#   ./build.sh             build build/ClaudeUsageBar.app
+#   ./build.sh             build "build/Claude Usage Bar.app"
 #   ./build.sh --install   also copy to ~/Applications and launch
 #   ./build.sh --zip       also write build/ClaudeUsageBar-<version>.zip and .zip.sha256 (release assets)
 #
@@ -26,20 +26,22 @@ for arch in arm64 x86_64; do
     BINS+=("$(swift build "${FLAGS[@]}" --show-bin-path)/ClaudeUsageBar")
 done
 
-APP=build/ClaudeUsageBar.app
+APP="build/Claude Usage Bar.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 lipo -create "${BINS[@]}" -output "$APP/Contents/MacOS/ClaudeUsageBar"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>ClaudeUsageBar</string>
+    <key>CFBundleName</key><string>Claude Usage Bar</string>
     <key>CFBundleDisplayName</key><string>Claude Usage Bar</string>
     <key>CFBundleIdentifier</key><string>io.github.claude-usage-bar</string>
     <key>CFBundleExecutable</key><string>ClaudeUsageBar</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>${VERSION}</string>
     <key>CFBundleVersion</key><string>${VERSION}</string>
@@ -65,9 +67,9 @@ for arg in "$@"; do
     --install)
         pkill -x ClaudeUsageBar || true
         mkdir -p ~/Applications
-        rm -rf ~/Applications/ClaudeUsageBar.app
+        rm -rf ~/Applications/ClaudeUsageBar.app "$HOME/Applications/Claude Usage Bar.app" # old and current names
         cp -R "$APP" ~/Applications/
-        open ~/Applications/ClaudeUsageBar.app
+        open "$HOME/Applications/Claude Usage Bar.app"
         echo "Installed to ~/Applications and launched"
         ;;
     esac

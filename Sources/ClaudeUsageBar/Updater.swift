@@ -28,7 +28,7 @@ enum UpdateError: LocalizedError {
 }
 
 /// Self-update from GitHub Releases.
-/// A release carries `ClaudeUsageBar-<version>.zip` and `ClaudeUsageBar-<version>.zip.sha256`.
+/// A release carries `ClaudeUsageBar-<version>.zip` (containing "Claude Usage Bar.app") and its `.zip.sha256`.
 enum Updater {
     /// "owner/repo", baked into Info.plist by build.sh. Missing for local builds without a remote.
     static var repository: String? {
@@ -82,10 +82,10 @@ enum Updater {
 
     /// Downloads, verifies and stages the new app, then swaps it in after this process exits and relaunches.
     static func install(_ release: AppRelease) async throws {
-        let destination = Bundle.main.bundleURL
-        let parent = destination.deletingLastPathComponent()
+        let current = Bundle.main.bundleURL
+        let parent = current.deletingLastPathComponent()
         guard FileManager.default.isWritableFile(atPath: parent.path) else {
-            throw UpdateError.notWritable(destination.path)
+            throw UpdateError.notWritable(current.path)
         }
 
         let (zip, _) = try await URLSession.shared.download(from: release.zipURL)
@@ -99,20 +99,26 @@ enum Updater {
         let staging = FileManager.default.temporaryDirectory.appending(path: "ClaudeUsageBar-update-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
         try run("/usr/bin/ditto", ["-x", "-k", zip.path, staging.path])
-        let newApp = staging.appending(path: destination.lastPathComponent)
-        guard let bundle = Bundle(url: newApp), bundle.bundleIdentifier == Bundle.main.bundleIdentifier else {
+        // The archive holds one .app; its name may differ from ours if the app was renamed.
+        let contents = try FileManager.default.contentsOfDirectory(at: staging, includingPropertiesForKeys: nil)
+        guard let newApp = contents.first(where: { $0.pathExtension == "app" }),
+              let bundle = Bundle(url: newApp), bundle.bundleIdentifier == Bundle.main.bundleIdentifier else {
             throw UpdateError.badArchive
         }
+        let destination = parent.appending(path: newApp.lastPathComponent)
 
-        // Wait for us to quit, swap bundles, relaunch.
+        // Wait for us to quit, put the new bundle in place (removing ours if it was renamed), relaunch.
         let script = """
         while kill -0 \(ProcessInfo.processInfo.processIdentifier) 2>/dev/null; do sleep 0.2; done
-        rm -rf "$2.old" && mv "$2" "$2.old" && mv "$1" "$2" && rm -rf "$2.old" "$3"
-        open "$2"
+        rm -rf "$3.old"
+        [ -e "$3" ] && mv "$3" "$3.old"
+        mv "$1" "$3" && rm -rf "$3.old" "$4"
+        [ "$2" != "$3" ] && rm -rf "$2"
+        open "$3"
         """
         let swapper = Process()
         swapper.executableURL = URL(fileURLWithPath: "/bin/sh")
-        swapper.arguments = ["-c", script, "sh", newApp.path, destination.path, staging.path]
+        swapper.arguments = ["-c", script, "sh", newApp.path, current.path, destination.path, staging.path]
         try swapper.run()
         await MainActor.run { NSApp.terminate(nil) }
     }

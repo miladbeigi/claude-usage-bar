@@ -155,25 +155,29 @@ Settings persist in `UserDefaults` (`menuDisplay`, `showPaceInMenuBar`, `refresh
 - When newer: header shows an accent pill "Update to X.Y.Z". Clicking it:
   1. Refuse with a clear message if the app's parent folder isn't writable.
   2. Download the zip and the checksum; verify SHA-256; abort on mismatch.
-  3. Unzip with `ditto -x -k` into a temp folder; require the bundle identifier to match.
-  4. Start a detached `/bin/sh` script that waits for this process to exit, moves the old bundle aside, moves the new one into place, deletes the old one and the temp folder, and `open`s the app. Then quit.
+  3. Unzip with `ditto -x -k` into a temp folder; take the one `.app` inside and require its bundle identifier to match.
+  4. The destination is the current app's folder plus the new bundle's name (so a renamed app replaces the old one). Start a detached `/bin/sh` script that waits for this process to exit, moves any bundle at the destination aside, moves the new one into place, deletes the aside copy, the temp folder and (if the name changed) the old bundle, and `open`s the app. Then quit.
 
 ## 9. Build and release
 
 `build.sh`:
 
 - `VERSION` env var or the `VERSION` file (leading `v` stripped). `UPDATE_REPO` env var, else parsed from `git remote get-url origin` (GitHub SSH or HTTPS form).
-- Builds release binaries for `arm64-apple-macosx14.0` and `x86_64-apple-macosx14.0`, each with its own `--scratch-path` (`.build/<arch>`), then `lipo -create` into `build/ClaudeUsageBar.app/Contents/MacOS/ClaudeUsageBar`.
-- Writes Info.plist: name `ClaudeUsageBar`, display name `Claude Usage Bar`, identifier `io.github.claude-usage-bar`, version, `LSMinimumSystemVersion 14.0`, `LSUIElement`, `UpdateRepository`.
+- Builds release binaries for `arm64-apple-macosx14.0` and `x86_64-apple-macosx14.0`, each with its own `--scratch-path` (`.build/<arch>`), then `lipo -create` into `build/Claude Usage Bar.app/Contents/MacOS/ClaudeUsageBar`, and copies `Resources/AppIcon.icns` into `Contents/Resources`.
+- Writes Info.plist: name and display name `Claude Usage Bar`, executable `ClaudeUsageBar`, `CFBundleIconFile` `AppIcon`, identifier `io.github.claude-usage-bar`, version, `LSMinimumSystemVersion 14.0`, `LSUIElement`, `UpdateRepository`.
 - Ad-hoc signs (`codesign --force --sign -`).
-- `--zip` writes the two release assets into `build/`. `--install` copies the app to `~/Applications` and launches it (killing a running copy first).
+- `--zip` writes the two release assets into `build/` (asset names have no spaces; the bundle inside is `Claude Usage Bar.app`). `--install` copies the app to `~/Applications` and launches it (killing a running copy first, and removing an old `ClaudeUsageBar.app`).
 
 GitHub Actions:
 
 - `ci.yml` (push to main, pull requests, `macos-latest`): `swift test`, `./build.sh --zip`, upload the zip as an artifact.
 - `release.yml` (push of tag `v*`, `contents: write`): `swift test`, `VERSION=<tag> UPDATE_REPO=<repository> ./build.sh --zip`, then `gh release create <tag> <zip> <sha256> --generate-notes`.
 
-## 10. Tests
+## 10. App icon
+
+`scripts/make-icon.swift` draws the icon with AppKit on a 1024 canvas and packs it with `iconutil` into `Resources/AppIcon.icns` (plus `docs/icon.png`): an 824 pt squircle (corner radius 186) centered per the macOS icon grid, with a soft drop shadow and a vertical coral gradient `#ED946E` → `#C76142`; two white rounded bars echoing the menu bar (top: x 232, width 560, height 120, 68% filled; bottom: height 84, 36% filled) over 28% white tracks; and a dark rounded tick (18 × 176) across the top bar at 52% marking elapsed time.
+
+## 11. Tests
 
 XCTest cases covering:
 
@@ -182,6 +186,6 @@ XCTest cases covering:
 - Formatting: durations, percent, plan names.
 - Updater: version comparison, release parsing (zip + checksum assets, `v` prefix), prereleases ignored, missing zip throws.
 
-## 11. Debug render
+## 12. Debug render
 
 In debug builds, `ClaudeUsageBar --render <dir> [--settings]` fills the store with sample data (session 74% resetting in 2 h 13 m, weekly 18% resetting in 4 days, plan "Max 5x"), renders the popover with `ImageRenderer` at 2× in light and dark to `light.png` / `dark.png`, renders the menu bar image tinted white on a dark strip to `menubar.png`, and exits without touching the network or keychain. Native controls render as placeholders; that's expected.
