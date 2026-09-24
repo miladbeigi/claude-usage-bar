@@ -168,6 +168,13 @@ Settings persist in `UserDefaults` (`menuDisplay`, `showPaceInMenuBar`, `refresh
 - Ad-hoc signs (`codesign --force --sign -`).
 - `--zip` writes the two release assets into `build/` (asset names have no spaces; the bundle inside is `Claude Usage Bar.app`). `--install` copies the app to `~/Applications` and launches it (killing a running copy first, and removing an old `ClaudeUsageBar.app`).
 
+`install.sh` (one-line install: `curl -fsSL https://raw.githubusercontent.com/<repo>/main/install.sh | bash`):
+
+- Requires macOS 14+. `REPO` env var overrides the repository; `INSTALL_DIR` overrides the destination.
+- Reads the latest release tag from the GitHub API (parse JSON with `plutil -extract tag_name raw`, no Python needed), downloads the zip and `.sha256` with curl, verifies with `shasum -a 256 -c`, unzips with `ditto -x -k`.
+- Destination: the folder of an existing install (current or pre-1.1 `ClaudeUsageBar.app` name), else `/Applications` if writable, else `~/Applications`.
+- Quits a running copy, replaces the bundle (removing the old name too), strips any quarantine attribute, and opens the app. Because curl doesn't quarantine downloads, Gatekeeper doesn't block the first launch.
+
 GitHub Actions:
 
 - `ci.yml` (push to main, pull requests, `macos-latest`): `swift test`, `./build.sh --zip`, upload the zip as an artifact.

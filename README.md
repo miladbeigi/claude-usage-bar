@@ -32,13 +32,26 @@ A small native macOS menu bar app that shows how much of your Claude subscriptio
 
 ## Install
 
+Run this in Terminal:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/miladbeigi/claude-usage-bar/main/install.sh | bash
+```
+
+It downloads the latest release, checks its SHA-256, installs **Claude Usage Bar.app** to `/Applications` (or `~/Applications` if that isn't writable), and launches it. Look for it in the menu bar. Read [`install.sh`](install.sh) first if you like; it's short. Running it again updates or reinstalls.
+
+<details>
+<summary>Manual install</summary>
+
 1. Download `ClaudeUsageBar-<version>.zip` from the [latest release](../../releases/latest) and unzip it.
-2. Move **Claude Usage Bar.app** to `/Applications` or `~/Applications`.
-3. The app is ad-hoc signed, not notarized, so macOS blocks the first launch. Either right-click the app → **Open** → **Open**, or run:
+2. Move **Claude Usage Bar.app** to `/Applications`.
+3. The app isn't notarized by Apple, so macOS blocks the first launch. Double-click the app, click **Done** (not Move to Trash), then open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**. Or skip the warning by running:
 
    ```sh
    xattr -dr com.apple.quarantine "/Applications/Claude Usage Bar.app"
    ```
+
+</details>
 
 After that the app keeps itself up to date (see [Updates](#updates)).
 
