@@ -1,6 +1,8 @@
-<img src="docs/icon.png" width="96" align="right" alt="App icon">
+<p align="center">
+  <img src="docs/icon.png" width="128" alt="Claude Usage Bar icon">
+</p>
 
-# Claude Usage Bar
+<h1 align="center">Claude Usage Bar</h1>
 
 A small native macOS menu bar app that shows how much of your Claude subscription limits you've used: the 5-hour session and the weekly limit, with a pace indicator that tells you whether you'll run out before the reset.
 
