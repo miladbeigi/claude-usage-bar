@@ -105,7 +105,7 @@ Severity for picking the most urgent: under 0, on pace 1, ahead 2, way ahead 3, 
 
 ## 6. Popover
 
-Width 320 pt. Side inset 14 pt. Icons use a 16 pt wide centered column with a 6 pt gap to their text.
+Width 330 pt (the footer must fit inside the 14 pt insets without overflowing). Side inset 14 pt. Icons use a 16 pt wide centered column with a 6 pt gap to their text.
 
 Colors (light / dark): brand coral `#D97857` for the header sparkle only; warning `#D48A00` / `#FAB219`; critical `#D03B3B` / `#E66767`. Everything else uses system primary/secondary label colors. Status colors are always paired with an icon and a label.
 
@@ -117,7 +117,7 @@ Top to bottom:
    - "Loading…" with a small spinner before the first data.
    - One **limit row** per window (session, then weekly).
 3. **Settings** (only when open), below a divider, padded 14 pt.
-4. **Footer**, 36 pt tall, faint tinted background, top divider: "Open claude.ai ↗" (opens `https://claude.ai/settings/usage`) · spacer · "Settings ⌘," (reads "Done" when open) · "Quit ⌘Q". Shortcut keys are drawn as 16×16 keycaps with a faint fill. All footer text 12 pt medium, single line.
+4. **Footer**, 36 pt tall, faint tinted background, top divider: "Open claude.ai ↗" (opens `https://claude.ai/settings/usage`) · spacer · "Settings ⌘," (reads "Done" when open) · "Quit ⌘Q". Shortcut keys are drawn as 16×16 keycaps with a faint fill. All footer text 12 pt medium, single line; 12 pt between footer items.
 
 **Limit row** (vertical stack, 7 pt spacing):
 

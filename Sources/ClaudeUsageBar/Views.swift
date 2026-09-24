@@ -6,7 +6,7 @@ import SwiftUI
 /// One grid for the whole popover: icons sit in a narrow column inline with their text;
 /// bars and detail lines run the full width.
 private enum Layout {
-    static let width: CGFloat = 320
+    static let width: CGFloat = 330
     static let inset: CGFloat = 14
     static let iconColumn: CGFloat = 16
     static let iconGap: CGFloat = 6
@@ -161,7 +161,7 @@ struct PopoverView: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             Button {
                 NSWorkspace.shared.open(URL(string: "https://claude.ai/settings/usage")!)
             } label: {
@@ -170,7 +170,7 @@ struct PopoverView: View {
                     Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .bold))
                 }
             }
-            Spacer()
+            Spacer(minLength: 12)
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) { store.settingsOpen.toggle() }
             } label: {
@@ -188,7 +188,7 @@ struct PopoverView: View {
         .lineLimit(1)
         .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, Layout.inset)
-        .frame(height: 36)
+        .frame(width: Layout.width, height: 36)
         .background(Color.primary.opacity(0.04))
         .overlay(alignment: .top) { Divider() }
     }
