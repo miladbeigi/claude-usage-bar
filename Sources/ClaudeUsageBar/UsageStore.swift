@@ -26,6 +26,7 @@ final class UsageStore {
     private(set) var availableUpdate: AppRelease?
     private(set) var updateStatus: String?
     private(set) var isInstallingUpdate = false
+    private(set) var isCheckingUpdate = false
 
     var menuDisplay: MenuDisplay {
         didSet { defaults.set(menuDisplay.rawValue, forKey: "menuDisplay") }
@@ -140,7 +141,11 @@ final class UsageStore {
     // MARK: Updates
 
     func checkForUpdate(manual: Bool) async {
+        guard !isCheckingUpdate else { return }
+        isCheckingUpdate = true
+        defer { isCheckingUpdate = false }
         lastUpdateCheck = Date()
+        if manual { updateStatus = nil }
         do {
             let release = try await Updater.latestRelease()
             if let release, Updater.isNewer(release.version, than: Updater.currentVersion) {
@@ -148,10 +153,19 @@ final class UsageStore {
                 updateStatus = nil
             } else {
                 availableUpdate = nil
-                if manual { updateStatus = "You're on the latest version." }
+                if manual { showTransientStatus("You're on the latest version.") }
             }
         } catch {
             if manual { updateStatus = error.localizedDescription }
+        }
+    }
+
+    /// Shows a status line that clears itself after a few seconds, unless something replaced it.
+    private func showTransientStatus(_ message: String) {
+        updateStatus = message
+        Task {
+            try? await Task.sleep(for: .seconds(4))
+            if updateStatus == message { updateStatus = nil }
         }
     }
 
@@ -205,6 +219,11 @@ extension UsageStore {
         )
         plan = "Max 5x"
         self.now = now
+        if CommandLine.arguments.contains("--update") {
+            updateStatus = "You're on the latest version."
+            availableUpdate = AppRelease(version: "1.2.0", zipURL: URL(string: "https://example.com/a.zip")!,
+                                         checksumURL: nil, pageURL: nil)
+        }
     }
 }
 #endif

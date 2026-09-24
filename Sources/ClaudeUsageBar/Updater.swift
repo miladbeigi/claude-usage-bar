@@ -32,6 +32,9 @@ enum UpdateError: LocalizedError {
 enum Updater {
     /// "owner/repo", baked into Info.plist by build.sh. Missing for local builds without a remote.
     static var repository: String? {
+        #if DEBUG
+        if let override = ProcessInfo.processInfo.environment["UPDATE_REPO"] { return override }
+        #endif
         let value = Bundle.main.object(forInfoDictionaryKey: "UpdateRepository") as? String
         return value?.isEmpty == false ? value : nil
     }

@@ -111,8 +111,11 @@ struct PopoverView: View {
                 Button {
                     Task { await store.installUpdate() }
                 } label: {
-                    Text(store.isInstallingUpdate ? "Updating…" : "Update to \(update.version)")
+                    Label(store.isInstallingUpdate ? "Updating…" : "Update", systemImage: "arrow.down.circle.fill")
+                        .labelStyle(.titleAndIcon)
                         .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                        .fixedSize()
                         .foregroundStyle(Color.accentColor)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
@@ -121,7 +124,7 @@ struct PopoverView: View {
                 .buttonStyle(.plain)
                 .focusable(false)
                 .disabled(store.isInstallingUpdate)
-                .help("Download, verify and install the new version, then relaunch")
+                .help("Install version \(update.version), then relaunch")
             }
             Text(store.lastUpdatedText)
                 .font(.system(size: 11))
@@ -377,20 +380,48 @@ struct SettingsSection: View {
                 Toggle("", isOn: $store.launchAtLogin).labelsHidden().toggleStyle(.switch)
             }
             if Updater.repository != nil {
-                SettingRow(icon: "arrow.down.circle", title: "Check for updates") {
-                    Toggle("", isOn: $store.checkForUpdates).labelsHidden().toggleStyle(.switch)
-                }
-                HStack(spacing: Layout.iconGap) {
-                    Color.clear.frame(width: Layout.iconColumn, height: 1)
-                    Text("Version \(Updater.currentVersion)")
-                    if let status = store.updateStatus { Text("· \(status)").lineLimit(1) }
-                    Spacer(minLength: 8)
-                    Button("Check now") { Task { await store.checkForUpdate(manual: true) } }
-                        .buttonStyle(.link)
+                Group {
+                    SettingRow(icon: "arrow.down.circle", title: "Check for updates") {
+                        Toggle("", isOn: $store.checkForUpdates).labelsHidden().toggleStyle(.switch)
+                    }
+                    SettingRow(icon: "info.circle", title: "Version \(Updater.currentVersion)") {
+                        Button {
+                            Task { await store.checkForUpdate(manual: true) }
+                        } label: {
+                            HStack(spacing: 4) {
+                                if store.isCheckingUpdate {
+                                    ProgressView().controlSize(.mini)
+                                } else {
+                                    Image(systemName: "arrow.clockwise")
+                                }
+                                Text("Check now")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(store.isCheckingUpdate)
                         .focusable(false)
+                    }
+                    if let status = store.updateStatus {
+                        IndentedNote(text: status)
+                            .transition(.opacity)
+                    }
+                    if let update = store.availableUpdate {
+                        HStack(spacing: Layout.iconGap) {
+                            IconCell(symbol: "arrow.down.circle.fill", color: .accentColor, size: 11)
+                            Text("Version \(update.version) is available").font(.system(size: 12))
+                            Spacer(minLength: 8)
+                            Button(store.isInstallingUpdate ? "Updating…" : "Update") {
+                                Task { await store.installUpdate() }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(store.isInstallingUpdate)
+                            .focusable(false)
+                        }
+                        .frame(height: 22)
+                    }
                 }
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+                .animation(.easeInOut(duration: 0.2), value: store.updateStatus)
+                .animation(.easeInOut(duration: 0.2), value: store.availableUpdate)
             }
 
             Text("Pace")
@@ -400,6 +431,20 @@ struct SettingsSection: View {
             PaceLegend()
         }
         .controlSize(.small)
+    }
+}
+
+/// Secondary text aligned with setting titles, wrapping instead of truncating.
+private struct IndentedNote: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Layout.iconGap) {
+            Color.clear.frame(width: Layout.iconColumn, height: 1)
+            Text(text).fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(.secondary)
     }
 }
 

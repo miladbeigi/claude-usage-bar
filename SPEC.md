@@ -135,7 +135,12 @@ Durations format as "45m", "2h 13m", "4d 7h" (negative → "0m").
 - Pace animal in menu bar (`hare`): switch, default on.
 - Check every (`arrow.clockwise`): menu picker 2 / 5 (default) / 10 / 15 / 30 min.
 - Launch at login (`power`): switch, backed by `SMAppService.mainApp` register/unregister.
-- Only when an update repository is configured: Check for updates (`arrow.down.circle`) switch, default on; below it "Version X.Y.Z" + optional status + a "Check now" link button.
+- Only when an update repository is configured:
+  - Check for updates (`arrow.down.circle`): switch, default on.
+  - "Version X.Y.Z" (`info.circle`) with a bordered small "Check now" button (`arrow.clockwise` icon, replaced by a mini spinner while checking; disabled while checking).
+  - Below it, when set, the check result on its own line, aligned with the setting titles and wrapping rather than truncating. "You're on the latest version." clears itself after 4 s; errors stay until the next check.
+  - When a newer release exists: a row with `arrow.down.circle.fill` (accent), "Version X.Y.Z is available", and a prominent small "Update" button ("Updating…" while installing).
+  - Status and update rows fade in and out (0.2 s).
 - Heading "Pace", then a legend (3 pt spacing, 11 pt): each animal with its name and meaning — "Under pace — ends below 75%", "On pace — ends at 75–100%", "Ahead — runs out before reset", "Way ahead — over 1.5× the limit".
 
 Settings persist in `UserDefaults` (`menuDisplay`, `showPaceInMenuBar`, `refreshMinutes`, `checkForUpdates`).
@@ -152,7 +157,7 @@ Settings persist in `UserDefaults` (`menuDisplay`, `showPaceInMenuBar`, `refresh
 - `build.sh` writes `UpdateRepository` (`owner/repo`) into Info.plist. Empty → updates disabled and their settings hidden.
 - Check `https://api.github.com/repos/<repo>/releases/latest` at launch and then at most every 6 hours (when enabled), plus on "Check now". Ignore drafts and prereleases. Version = `tag_name` without a leading `v`. Compare dot-separated numerically ("1.10.0" > "1.9.2").
 - Release assets: `ClaudeUsageBar-<version>.zip` (the `.app`, zipped with `ditto -c -k --keepParent`) and `ClaudeUsageBar-<version>.zip.sha256` (`shasum -a 256` output).
-- When newer: header shows an accent pill "Update to X.Y.Z". Clicking it:
+- When newer: the header shows a single-line accent pill "⬇ Update" (tooltip "Install version X.Y.Z, then relaunch"), and Settings shows the update row above. Either one:
   1. Refuse with a clear message if the app's parent folder isn't writable.
   2. Download the zip and the checksum; verify SHA-256; abort on mismatch.
   3. Unzip with `ditto -x -k` into a temp folder; take the one `.app` inside and require its bundle identifier to match.
