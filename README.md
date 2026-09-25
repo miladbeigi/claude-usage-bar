@@ -24,7 +24,8 @@ A small native macOS menu bar app that shows how much of your Claude subscriptio
   - 🐇 **Ahead:** you'll run out before it resets (the popover shows roughly when).
   - 🐦 **Way ahead:** you're heading for more than 1.5× the limit.
 - **Popover:** each limit with a progress bar, a tick showing how much of the window has elapsed, the reset time, and the pace. Bars turn amber from 70% and red from 90%.
-- **Settings:** what the menu bar shows, the pace animal, how often to check (default every 5 minutes), launch at login, and automatic updates.
+- **Per-model limits (optional):** turn on "Per-model limits" in Settings to also see each model's own weekly limit (e.g. Fable) as a row in the popover. Only models your plan actually limits appear.
+- **Settings:** what the menu bar shows, the pace animal, per-model limits, how often to check (default every 5 minutes), launch at login, and automatic updates.
 - Closes when you click away. ⌘R refreshes, ⌘, opens settings, ⌘Q quits.
 
 ## Requirements

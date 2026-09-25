@@ -3,13 +3,44 @@ import Security
 
 // MARK: - Models
 
-enum LimitKind: String, Sendable {
-    case session = "five_hour"
-    case weekly = "seven_day"
+enum LimitKind: Hashable, Sendable {
+    case session
+    case weekly
+    /// A weekly limit scoped to one model, by display name ("Fable", "Opus").
+    case model(String)
 
-    var title: String { self == .session ? "Session" : "Weekly" }
-    var subtitle: String { self == .session ? "5 hours" : "All models" }
-    var symbol: String { self == .session ? "clock.fill" : "calendar" }
+    var id: String {
+        switch self {
+        case .session: return "five_hour"
+        case .weekly: return "seven_day"
+        case .model(let name): return "model:" + name.lowercased()
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .session: return "Session"
+        case .weekly: return "Weekly"
+        case .model(let name): return name
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .session: return "5 hours"
+        case .weekly: return "All models"
+        case .model: return "Weekly"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .session: return "clock.fill"
+        case .weekly: return "calendar"
+        case .model: return "cpu"
+        }
+    }
+
     var duration: TimeInterval { self == .session ? 5 * 3600 : 7 * 86400 }
 }
 
@@ -17,7 +48,7 @@ struct LimitWindow: Identifiable, Sendable {
     let kind: LimitKind
     let utilization: Double // 0...100 (percent)
     let resetsAt: Date?
-    var id: String { kind.rawValue }
+    var id: String { kind.id }
 
     /// Fraction of the window that has elapsed (0...1), used for the pace marker.
     func elapsedFraction(now: Date) -> Double? {
@@ -91,6 +122,8 @@ enum Pace: Equatable {
 struct UsageSnapshot: Sendable {
     let session: LimitWindow?
     let weekly: LimitWindow?
+    /// Per-model weekly limits, sorted by name. Only models the plan actually limits appear.
+    var models: [LimitWindow] = []
     let fetchedAt: Date
 
     var windows: [LimitWindow] { [session, weekly].compactMap { $0 } }
@@ -231,18 +264,42 @@ enum UsageAPI {
         return try decode(data)
     }
 
-    /// Reads the `five_hour` and `seven_day` buckets: {"utilization": 18.0, "resets_at": "2026-…"}.
+    /// Legacy top-level per-model buckets that are read when filled in. Other `seven_day_*`
+    /// keys (`cowork`, `oauth_apps`, codenames) aren't models, so there is no wildcard match.
+    static let legacyModelBuckets = ["seven_day_opus": "Opus", "seven_day_sonnet": "Sonnet"]
+
+    /// Reads the `five_hour` and `seven_day` buckets: {"utilization": 18.0, "resets_at": "2026-…"},
+    /// plus per-model weekly limits (see `modelWindows`).
     static func decode(_ data: Data) throws -> UsageSnapshot {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw UsageError.decoding
         }
-        func window(_ kind: LimitKind) -> LimitWindow? {
-            guard let obj = json[kind.rawValue] as? [String: Any],
+        func window(_ key: String, _ kind: LimitKind) -> LimitWindow? {
+            guard let obj = json[key] as? [String: Any],
                   let utilization = (obj["utilization"] as? NSNumber)?.doubleValue else { return nil }
             return LimitWindow(kind: kind, utilization: utilization,
                                resetsAt: (obj["resets_at"] as? String).flatMap(parseDate))
         }
-        return UsageSnapshot(session: window(.session), weekly: window(.weekly), fetchedAt: Date())
+        let legacy = legacyModelBuckets.compactMap { window($0.key, .model($0.value)) }
+        return UsageSnapshot(session: window("five_hour", .session), weekly: window("seven_day", .weekly),
+                             models: modelWindows(json["limits"], legacy: legacy), fetchedAt: Date())
+    }
+
+    /// Model-scoped weekly entries in the `limits` array:
+    /// {"kind": "weekly_scoped", "percent": 8, "resets_at": "…", "scope": {"model": {"display_name": "Fable"}}},
+    /// merged with `legacy` windows for models the array doesn't cover, sorted by name.
+    static func modelWindows(_ limits: Any?, legacy: [LimitWindow]) -> [LimitWindow] {
+        var byID: [String: LimitWindow] = [:]
+        for entry in limits as? [[String: Any]] ?? [] where entry["kind"] as? String == "weekly_scoped" {
+            let model = (entry["scope"] as? [String: Any])?["model"] as? [String: Any]
+            guard let name = model?["display_name"] as? String, !name.isEmpty,
+                  let percent = (entry["percent"] as? NSNumber)?.doubleValue else { continue }
+            let window = LimitWindow(kind: .model(name), utilization: percent,
+                                     resetsAt: (entry["resets_at"] as? String).flatMap(parseDate))
+            byID[window.id] = byID[window.id] ?? window
+        }
+        for window in legacy where byID[window.id] == nil { byID[window.id] = window }
+        return byID.values.sorted { $0.kind.title.localizedCaseInsensitiveCompare($1.kind.title) == .orderedAscending }
     }
 
     static func parseDate(_ s: String) -> Date? {
