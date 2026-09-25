@@ -14,7 +14,7 @@ Non-goals, on purpose:
 
 - **No login of its own.** Anthropic's Consumer Terms allow subscription OAuth only in Claude Code and claude.ai, so the app never runs an OAuth flow, never impersonates Claude Code's OAuth client, and never refreshes the token (refreshing would rotate Claude Code's refresh token and log it out).
 - **No local transcript parsing, no history, no charts, no notifications.**
-- **No per-model rows.** Only session and weekly are shown.
+- **Per-model rows are opt-in.** The menu bar only ever shows session and weekly; the popover adds each model's weekly limit only when the "Per-model limits" setting is on (off by default).
 
 ## 2. Tech and layout
 
@@ -64,18 +64,23 @@ This endpoint is undocumented and may change. Status handling: 200 → decode; 4
 ```json
 {
   "five_hour": { "utilization": 18.0, "resets_at": "2026-09-24T18:10:00.428610+00:00" },
-  "seven_day": { "utilization": 12.0, "resets_at": "2026-09-28T23:00:00.428677+00:00" }
+  "seven_day": { "utilization": 12.0, "resets_at": "2026-09-28T23:00:00.428677+00:00" },
+  "limits": [
+    { "kind": "weekly_scoped", "percent": 8, "resets_at": "2026-09-28T23:00:00.097081+00:00",
+      "scope": { "model": { "display_name": "Fable" } } }
+  ]
 }
 ```
 
 - `utilization` is a **percentage** (0–100), not a fraction.
 - `resets_at` is ISO 8601, with or without fractional seconds; may be null.
 - Either object may be null or missing → that window is absent.
+- **Per-model limits:** each `limits` entry with `kind` `weekly_scoped` and a non-empty `scope.model.display_name` becomes a `.model(<display name>)` window: `percent` is its utilization (0–100), `resets_at` as above, duration 7 d. Entries scoped only to a surface (no model) are skipped. The legacy top-level buckets `seven_day_opus` ("Opus") and `seven_day_sonnet` ("Sonnet") are read like `seven_day` when non-null, but a `limits` entry for the same model (case-insensitive) wins. No wildcard over `seven_day_*`: other keys (`seven_day_cowork`, `seven_day_oauth_apps`, codenames) aren't models. Sorted by name.
 - Everything else in the response is ignored.
 
 ## 4. Pace
 
-For a window with duration `D` (5 h for session, 7 d for weekly) and reset time `R`:
+For a window with duration `D` (5 h for session, 7 d for weekly and per-model) and reset time `R`:
 
 - `elapsed = clamp(1 − (R − now) / D, 0, 1)`.
 - If `utilization ≥ 100` → **reached**.
@@ -116,6 +121,7 @@ Top to bottom:
    - Optional error note: warning triangle + message, 12 pt, on a warning-tinted rounded rectangle (radius 8).
    - "Loading…" with a small spinner before the first data.
    - One **limit row** per window (session, then weekly).
+   - When "Per-model limits" is on: one limit row per model (icon `cpu`, title = model name, subtitle "Weekly"), or, if there are none, the note "No per-model limits on your plan right now." aligned with the row titles (11 pt secondary).
 3. **Settings** (only when open), below a divider, padded 14 pt.
 4. **Footer**, 36 pt tall, faint tinted background, top divider: "Open claude.ai ↗" (opens `https://claude.ai/settings/usage`) · spacer · "Settings ⌘," (reads "Done" when open) · "Quit ⌘Q". Shortcut keys are drawn as 16×16 keycaps with a faint fill. All footer text 12 pt medium, single line; 12 pt between footer items.
 
@@ -133,6 +139,7 @@ Durations format as "45m", "2h 13m", "4d 7h" (negative → "0m").
 - Heading "Settings" (11 pt semibold secondary).
 - Menu bar (`menubar.rectangle`): menu picker — "Session and weekly" (default) / "Session only" / "Weekly only".
 - Pace animal in menu bar (`hare`): switch, default on.
+- Per-model limits (`cpu`): switch, default off.
 - Check every (`arrow.clockwise`): menu picker 2 / 5 (default) / 10 / 15 / 30 min.
 - Launch at login (`power`): switch, backed by `SMAppService.mainApp` register/unregister.
 - Only when an update repository is configured:
@@ -143,7 +150,7 @@ Durations format as "45m", "2h 13m", "4d 7h" (negative → "0m").
   - Status and update rows fade in and out (0.2 s).
 - Heading "Pace", then a legend (3 pt spacing, 11 pt): each animal with its name and meaning — "Under pace — ends below 75%", "On pace — ends at 75–100%", "Ahead — runs out before reset", "Way ahead — over 1.5× the limit".
 
-Settings persist in `UserDefaults` (`menuDisplay`, `showPaceInMenuBar`, `refreshMinutes`, `checkForUpdates`).
+Settings persist in `UserDefaults` (`menuDisplay`, `showPaceInMenuBar`, `showModelLimits`, `refreshMinutes`, `checkForUpdates`).
 
 ## 7. Refresh loop
 
@@ -193,11 +200,11 @@ GitHub Actions:
 
 XCTest cases covering:
 
-- Decoding: both windows parsed (fractional-second dates), null/missing windows → nil, non-object JSON throws, unrelated keys ignored.
+- Decoding: both windows parsed (fractional-second dates), null/missing windows → nil, non-object JSON throws, unrelated keys ignored; model-scoped `weekly_scoped` entries parsed, surface-only entries and non-model `seven_day_*` keys ignored, legacy Opus/Sonnet buckets merged with the `limits` entry winning.
 - Pace: each band (20% projected → under, 90% and exactly 100% → on pace, 120% → ahead, 180% → way ahead, 100% used → reached), nil when too early or no reset time, runs-out estimate (60% used halfway through a 5 h window → 1 h 40 m), elapsed fraction clamped, severity ordering.
 - Formatting: durations, percent, plan names.
 - Updater: version comparison, release parsing (zip + checksum assets, `v` prefix), prereleases ignored, missing zip throws.
 
 ## 12. Debug render
 
-In debug builds, `ClaudeUsageBar --render <dir> [--settings]` fills the store with sample data (session 74% resetting in 2 h 13 m, weekly 18% resetting in 4 days, plan "Max 5x"), renders the popover with `ImageRenderer` at 2× in light and dark to `light.png` / `dark.png`, renders the menu bar image tinted white on a dark strip to `menubar.png`, and exits without touching the network or keychain. Native controls render as placeholders; that's expected.
+In debug builds, `ClaudeUsageBar --render <dir> [--settings] [--models]` fills the store with sample data (session 74% resetting in 2 h 13 m, weekly 18% resetting in 4 days, per-model Fable 8% and Opus 9%, plan "Max 5x"; `--models` shows the per-model rows without saving the setting), renders the popover with `ImageRenderer` at 2× in light and dark to `light.png` / `dark.png`, renders the menu bar image tinted white on a dark strip to `menubar.png`, and exits without touching the network or keychain. Native controls render as placeholders; that's expected.

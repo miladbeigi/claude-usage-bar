@@ -2,7 +2,7 @@
 import AppKit
 import SwiftUI
 
-/// `ClaudeUsageBar --render <dir> [--settings]` writes popover and menu bar images with sample data, then exits.
+/// `ClaudeUsageBar --render <dir> [--settings] [--models]` writes popover and menu bar images with sample data, then exits.
 @MainActor
 enum DebugRender {
     static func runIfRequested() -> Bool {

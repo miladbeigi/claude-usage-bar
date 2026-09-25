@@ -18,6 +18,48 @@ final class DecodeTests: XCTestCase {
         let expected = ISO8601DateFormatter().date(from: "2026-09-24T18:10:00Z")!.timeIntervalSince1970
         XCTAssertEqual(try XCTUnwrap(snap.session?.resetsAt).timeIntervalSince1970, expected, accuracy: 1)
         XCTAssertEqual(snap.windows.map(\.kind), [.session, .weekly])
+        XCTAssertTrue(snap.models.isEmpty) // unscoped weekly_scoped entry and null buckets → no model rows
+    }
+
+    func testDecodesFableScopedLimit() throws {
+        let json = #"""
+        {
+          "five_hour": {"utilization": 2.0, "resets_at": "2026-09-25T18:20:00.096897+00:00"},
+          "seven_day": {"utilization": 25.0, "resets_at": "2026-09-28T23:00:00.096919+00:00"},
+          "seven_day_opus": null,
+          "limits": [
+            {"kind": "session", "group": "session", "percent": 2, "resets_at": "2026-09-25T18:20:00.096897+00:00", "scope": null},
+            {"kind": "weekly_all", "group": "weekly", "percent": 25, "resets_at": "2026-09-28T23:00:00.096919+00:00", "scope": null},
+            {"kind": "weekly_scoped", "group": "weekly", "percent": 8, "resets_at": "2026-09-28T23:00:00.097081+00:00",
+             "scope": {"model": {"id": null, "display_name": "Fable"}, "surface": null}, "is_active": false}
+          ]
+        }
+        """#
+        let snap = try UsageAPI.decode(Data(json.utf8))
+        let fable = try XCTUnwrap(snap.models.first)
+        XCTAssertEqual(snap.models.count, 1)
+        XCTAssertEqual(fable.kind, .model("Fable"))
+        XCTAssertEqual(fable.utilization, 8)
+        XCTAssertNotNil(fable.resetsAt)
+        XCTAssertEqual(snap.windows.map(\.kind), [.session, .weekly]) // menu bar still reads only these
+    }
+
+    func testMergesScopedAndLegacyModelLimits() throws {
+        let json = #"""
+        {
+          "seven_day_opus": {"utilization": 40, "resets_at": null},
+          "seven_day_sonnet": {"utilization": 3, "resets_at": null},
+          "seven_day_cowork": {"utilization": 50, "resets_at": null},
+          "limits": [
+            {"kind": "weekly_scoped", "percent": 8, "scope": {"model": {"display_name": "Fable"}}},
+            {"kind": "weekly_scoped", "percent": 41, "scope": {"model": {"display_name": "Opus"}}},
+            {"kind": "weekly_scoped", "percent": 5, "scope": {"model": null, "surface": "cowork"}}
+          ]
+        }
+        """#
+        let models = try UsageAPI.decode(Data(json.utf8)).models
+        XCTAssertEqual(models.map(\.kind.title), ["Fable", "Opus", "Sonnet"])
+        XCTAssertEqual(models.map(\.utilization), [8, 41, 3]) // the limits entry wins over the legacy bucket
     }
 
     func testMissingWindowsAreNil() throws {

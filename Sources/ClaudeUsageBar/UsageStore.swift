@@ -34,6 +34,9 @@ final class UsageStore {
     var showPaceInMenuBar: Bool {
         didSet { defaults.set(showPaceInMenuBar, forKey: "showPaceInMenuBar") }
     }
+    var showModelLimits: Bool {
+        didSet { defaults.set(showModelLimits, forKey: "showModelLimits") }
+    }
     var checkForUpdates: Bool {
         didSet {
             defaults.set(checkForUpdates, forKey: "checkForUpdates")
@@ -65,6 +68,7 @@ final class UsageStore {
     init() {
         menuDisplay = MenuDisplay(rawValue: defaults.string(forKey: "menuDisplay") ?? "") ?? .both
         showPaceInMenuBar = defaults.object(forKey: "showPaceInMenuBar") as? Bool ?? true
+        showModelLimits = defaults.bool(forKey: "showModelLimits")
         checkForUpdates = defaults.object(forKey: "checkForUpdates") as? Bool ?? true
         let minutes = defaults.integer(forKey: "refreshMinutes")
         refreshMinutes = minutes > 0 ? minutes : 5
@@ -215,10 +219,15 @@ extension UsageStore {
         snapshot = UsageSnapshot(
             session: LimitWindow(kind: .session, utilization: 74, resetsAt: now.addingTimeInterval(2 * 3600 + 13 * 60)),
             weekly: LimitWindow(kind: .weekly, utilization: 18, resetsAt: now.addingTimeInterval(4 * 86400)),
+            models: [
+                LimitWindow(kind: .model("Fable"), utilization: 8, resetsAt: now.addingTimeInterval(4 * 86400)),
+                LimitWindow(kind: .model("Opus"), utilization: 9, resetsAt: now.addingTimeInterval(4 * 86400)),
+            ],
             fetchedAt: now.addingTimeInterval(-90)
         )
         plan = "Max 5x"
         self.now = now
+        if CommandLine.arguments.contains("--models") { showModelLimits = true }
         if CommandLine.arguments.contains("--update") {
             updateStatus = "You're on the latest version."
             availableUpdate = AppRelease(version: "1.2.0", zipURL: URL(string: "https://example.com/a.zip")!,

@@ -155,6 +155,15 @@ struct PopoverView: View {
             ForEach(snapshot.windows) { window in
                 LimitRow(window: window, now: store.now)
             }
+            if store.showModelLimits {
+                if snapshot.models.isEmpty {
+                    IndentedNote(text: "No per-model limits on your plan right now.")
+                } else {
+                    ForEach(snapshot.models) { window in
+                        LimitRow(window: window, now: store.now)
+                    }
+                }
+            }
         } else if store.apiError == nil {
             HStack(spacing: Layout.iconGap) {
                 ProgressView().controlSize(.small).frame(width: Layout.iconColumn)
@@ -368,6 +377,9 @@ struct SettingsSection: View {
             }
             SettingRow(icon: "hare", title: "Pace animal in menu bar") {
                 Toggle("", isOn: $store.showPaceInMenuBar).labelsHidden().toggleStyle(.switch)
+            }
+            SettingRow(icon: "cpu", title: "Per-model limits") {
+                Toggle("", isOn: $store.showModelLimits).labelsHidden().toggleStyle(.switch)
             }
             SettingRow(icon: "arrow.clockwise", title: "Check every") {
                 Picker("", selection: $store.refreshMinutes) {
