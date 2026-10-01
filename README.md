@@ -6,6 +6,8 @@
 
 A small native macOS menu bar app that shows how much of your Claude subscription limits you've used: the 5-hour session and the weekly limit, with a pace indicator that tells you whether you'll run out before the reset.
 
+**Website:** [claude-usage-bar.miladapps.com](https://claude-usage-bar.miladapps.com), where you can try the popover and its pace animals in the browser.
+
 ![Menu bar](docs/menubar.png)
 
 <p>
