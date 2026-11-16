@@ -12,7 +12,7 @@ A native macOS menu bar app that shows how much of your Claude subscription limi
 
 Non-goals, on purpose:
 
-- **No login of its own.** Anthropic's Consumer Terms allow subscription OAuth only in Claude Code and claude.ai, so the app never runs an OAuth flow, never impersonates Claude Code's OAuth client, and never refreshes the token (refreshing would rotate Claude Code's refresh token and log it out).
+- **No login of its own.** Anthropic's Consumer Terms allow subscription OAuth only in Claude Code and claude.ai, so the app never runs an OAuth flow, never impersonates Claude Code's OAuth client, and never refreshes the token itself (refreshing would rotate Claude Code's refresh token and log it out). To keep the login alive it asks Claude Code to refresh instead (§3.4).
 - **No local transcript parsing, no history, no charts, no notifications.**
 - **Per-model rows are opt-in.** The menu bar only ever shows session and weekly; the popover adds each model's weekly limit only when the "Per-model limits" setting is on (off by default).
 
@@ -23,6 +23,7 @@ Non-goals, on purpose:
 - Files:
   - `App.swift`: `@main` SwiftUI `App` with an `NSApplicationDelegateAdaptor`; status item, popover, menu bar image.
   - `UsageAPI.swift`: models, pace logic, credential reading, API client, decoding.
+  - `LoginKeeper.swift`: has Claude Code refresh its own login before the token expires (§3.4).
   - `UsageStore.swift`: `@MainActor @Observable` state, settings, refresh loop, `Format` helpers.
   - `Views.swift`: all SwiftUI views.
   - `Updater.swift`: GitHub Releases self-update.
@@ -43,9 +44,7 @@ Lookup order:
    - Use the first item whose JSON has `claudeAiOauth.accessToken`.
 2. `~/.claude/.credentials.json` with the same JSON shape.
 
-Cache the credentials in memory. Re-read only when the cached token is past `expiresAt`, or after a 401/403 (Claude Code may have refreshed it). Read on a background task.
-
-Plan badge: `rateLimitTier` containing `20x` → "Max 20x", `5x` → "Max 5x", otherwise `subscriptionType` capitalized ("Pro"), otherwise hidden.
+Cache the credentials in memory. Re-read only when the cached token is within 4 minutes of `expiresAt` (or past it), or after a 401/403 (Claude Code may have refreshed it). Read on a background task.
 
 ### 3.2 Request
 
@@ -77,6 +76,17 @@ This endpoint is undocumented and may change. Status handling: 200 → decode; 4
 - Either object may be null or missing → that window is absent.
 - **Per-model limits:** each `limits` entry with `kind` `weekly_scoped` and a non-empty `scope.model.display_name` becomes a `.model(<display name>)` window: `percent` is its utilization (0–100), `resets_at` as above, duration 7 d. Entries scoped only to a surface (no model) are skipped. The legacy top-level buckets `seven_day_opus` ("Opus") and `seven_day_sonnet` ("Sonnet") are read like `seven_day` when non-null, but a `limits` entry for the same model (case-insensitive) wins. No wildcard over `seven_day_*`: other keys (`seven_day_cowork`, `seven_day_oauth_apps`, codenames) aren't models. Sorted by name.
 - Everything else in the response is ignored.
+
+### 3.4 Keeping the login alive
+
+Claude Code only refreshes its token while it is being used, so with no `claude` session the access token (about 8 hours) expires and, after about 11 days, so does the refresh token. When "Keep Claude Code signed in" is on (default), the app has Claude Code refresh the login itself:
+
+- Trigger: the token read from the store is within 4 minutes of `expiresAt` or past it (Claude Code refreshes within 5 minutes of expiry), or the usage endpoint returned 401/403 (Claude Code force-refreshes on a 401). At most one run per 10 minutes.
+- Find `claude` in `~/.local/bin`, `~/.claude/local`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.npm-global/bin`, `~/.bun/bin`, else `zsh -lc 'command -v claude'`.
+- Run it from the temporary directory, stdin closed, `ANTHROPIC_API_KEY` removed, PATH prefixed with its folder, `/opt/homebrew/bin` and `/usr/local/bin`, killed after 90 s: `claude -p "Reply with just OK." --model haiku --tools "" --strict-mcp-config --setting-sources project,local --disable-slash-commands --no-session-persistence --output-format text`. That loads no tools, MCP servers, user hooks or plugins and saves no session; it costs a few thousand Haiku tokens.
+- Then re-read the credentials and retry. If the run fails while the old token still works, keep using it and try again later; once it has expired, show "Couldn't refresh the Claude Code login (<last stderr line>). Use `claude` once to sign in again." (or, with no `claude` found, "Couldn't find the `claude` command to refresh the login. Use `claude` once to refresh it.").
+
+Plan badge: `rateLimitTier` containing `20x` → "Max 20x", `5x` → "Max 5x", otherwise `subscriptionType` capitalized ("Pro"), otherwise hidden.
 
 ## 4. Pace
 
@@ -141,6 +151,7 @@ Durations format as "45m", "2h 13m", "4d 7h" (negative → "0m").
 - Pace animal in menu bar (`hare`): switch, default on.
 - Per-model limits (`cpu`): switch, default off.
 - Check every (`arrow.clockwise`): menu picker 2 / 5 (default) / 10 / 15 / 30 min.
+- Keep Claude Code signed in (`key`): switch, default on (§3.4). Tooltip: "Before the token expires, run a tiny `claude` request on Haiku so Claude Code refreshes its own login."
 - Launch at login (`power`): switch, backed by `SMAppService.mainApp` register/unregister.
 - Only when an update repository is configured:
   - Check for updates (`arrow.down.circle`): switch, default on.
@@ -150,7 +161,7 @@ Durations format as "45m", "2h 13m", "4d 7h" (negative → "0m").
   - Status and update rows fade in and out (0.2 s).
 - Heading "Pace", then a legend (3 pt spacing, 11 pt): each animal with its name and meaning — "Under pace — ends below 75%", "On pace — ends at 75–100%", "Ahead — runs out before reset", "Way ahead — over 1.5× the limit".
 
-Settings persist in `UserDefaults` (`menuDisplay`, `showPaceInMenuBar`, `showModelLimits`, `refreshMinutes`, `checkForUpdates`).
+Settings persist in `UserDefaults` (`menuDisplay`, `showPaceInMenuBar`, `showModelLimits`, `refreshMinutes`, `checkForUpdates`, `keepSignedIn`).
 
 ## 7. Refresh loop
 

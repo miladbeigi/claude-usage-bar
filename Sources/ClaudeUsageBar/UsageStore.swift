@@ -43,6 +43,10 @@ final class UsageStore {
             if checkForUpdates { Task { await self.checkForUpdate(manual: false) } }
         }
     }
+    /// Have Claude Code refresh its login before the token expires (see `LoginKeeper`).
+    var keepSignedIn: Bool {
+        didSet { defaults.set(keepSignedIn, forKey: "keepSignedIn") }
+    }
     var refreshMinutes: Int {
         didSet { defaults.set(refreshMinutes, forKey: "refreshMinutes") }
     }
@@ -64,12 +68,14 @@ final class UsageStore {
     @ObservationIgnored private var backoff: TimeInterval = 0
     @ObservationIgnored private var started = false
     @ObservationIgnored private var lastUpdateCheck = Date.distantPast
+    @ObservationIgnored private var lastLoginRefresh = Date.distantPast
 
     init() {
         menuDisplay = MenuDisplay(rawValue: defaults.string(forKey: "menuDisplay") ?? "") ?? .both
         showPaceInMenuBar = defaults.object(forKey: "showPaceInMenuBar") as? Bool ?? true
         showModelLimits = defaults.bool(forKey: "showModelLimits")
         checkForUpdates = defaults.object(forKey: "checkForUpdates") as? Bool ?? true
+        keepSignedIn = defaults.object(forKey: "keepSignedIn") as? Bool ?? true
         let minutes = defaults.integer(forKey: "refreshMinutes")
         refreshMinutes = minutes > 0 ? minutes : 5
         launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -124,7 +130,15 @@ final class UsageStore {
         lastFetch = Date()
         do {
             let creds = try await loadCredentials()
-            let snap = try await UsageAPI.fetch(token: creds.accessToken)
+            let snap: UsageSnapshot
+            do {
+                snap = try await UsageAPI.fetch(token: creds.accessToken)
+            } catch UsageError.unauthorized where canRefreshLogin {
+                // Claude Code force-refreshes on a 401 too, so let it, then retry once.
+                try await refreshLogin()
+                credentials = nil
+                snap = try await UsageAPI.fetch(token: try await loadCredentials().accessToken)
+            }
             snapshot = snap
             apiError = nil
             backoff = 0
@@ -186,13 +200,36 @@ final class UsageStore {
     }
 
     private func loadCredentials() async throws -> Credentials {
-        if let c = credentials, (c.expiresAt ?? .distantFuture) > Date() { return c }
-        // Keychain access may show a system prompt; keep it off the main thread.
-        let c = try await Task.detached { try CredentialStore.load() }.value
-        plan = c.planName
+        if let c = credentials, !LoginKeeper.needsRefresh(c) { return c }
+        var c = try await readCredentials()
+        if LoginKeeper.needsRefresh(c), canRefreshLogin {
+            do {
+                try await refreshLogin()
+                c = try await readCredentials()
+            } catch where (c.expiresAt ?? .distantFuture) > Date() {
+                // The current token still works for a few minutes; try again on a later check.
+            }
+        }
         if let exp = c.expiresAt, exp <= Date() { throw UsageError.tokenExpired }
         credentials = c
         return c
+    }
+
+    private func readCredentials() async throws -> Credentials {
+        // Keychain access may show a system prompt; keep it off the main thread.
+        let c = try await Task.detached { try CredentialStore.load() }.value
+        plan = c.planName
+        return c
+    }
+
+    /// At most one `claude` run per 10 minutes, so a failing refresh doesn't burn quota every check.
+    private var canRefreshLogin: Bool {
+        keepSignedIn && Date().timeIntervalSince(lastLoginRefresh) > 10 * 60
+    }
+
+    private func refreshLogin() async throws {
+        lastLoginRefresh = Date()
+        try await LoginKeeper.run()
     }
 }
 

@@ -388,6 +388,10 @@ struct SettingsSection: View {
                 .labelsHidden()
                 .fixedSize()
             }
+            SettingRow(icon: "key", title: "Keep Claude Code signed in") {
+                Toggle("", isOn: $store.keepSignedIn).labelsHidden().toggleStyle(.switch)
+            }
+            .help("Before the token expires, run a tiny `claude` request on Haiku so Claude Code refreshes its own login.")
             SettingRow(icon: "power", title: "Launch at login") {
                 Toggle("", isOn: $store.launchAtLogin).labelsHidden().toggleStyle(.switch)
             }

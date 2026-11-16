@@ -151,6 +151,8 @@ enum UsageError: LocalizedError {
     case rateLimited(retryAfter: TimeInterval?)
     case http(Int)
     case decoding
+    case claudeNotFound
+    case loginRefreshFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -166,6 +168,10 @@ enum UsageError: LocalizedError {
             return "Usage endpoint returned HTTP \(code)."
         case .decoding:
             return "Couldn't read the usage response."
+        case .claudeNotFound:
+            return "Couldn't find the `claude` command to refresh the login. Use `claude` once to refresh it."
+        case .loginRefreshFailed(let detail):
+            return "Couldn't refresh the Claude Code login (\(detail)). Use `claude` once to sign in again."
         }
     }
 }
@@ -174,6 +180,7 @@ enum UsageError: LocalizedError {
 
 /// Reads the OAuth token Claude Code stores after `claude` login.
 /// We never refresh the token ourselves: rotating the refresh token would log Claude Code out.
+/// To keep the login alive, `LoginKeeper` asks Claude Code to refresh it instead.
 enum CredentialStore {
     static let keychainService = "Claude Code-credentials"
 
