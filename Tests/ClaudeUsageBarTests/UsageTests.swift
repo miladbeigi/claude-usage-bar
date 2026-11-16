@@ -164,3 +164,27 @@ final class UpdaterTests: XCTestCase {
         XCTAssertThrowsError(try Updater.parseRelease(Data(#"{"tag_name": "v2.0.0", "assets": []}"#.utf8)))
     }
 }
+
+final class LoginKeeperTests: XCTestCase {
+    private func creds(expiringIn seconds: TimeInterval?, now: Date) -> Credentials {
+        Credentials(accessToken: "t", expiresAt: seconds.map { now.addingTimeInterval($0) },
+                    subscriptionType: nil, rateLimitTier: nil)
+    }
+
+    func testNeedsRefreshOnlyNearOrPastExpiry() {
+        let now = Date()
+        XCTAssertFalse(LoginKeeper.needsRefresh(creds(expiringIn: 3600, now: now), now: now))
+        XCTAssertFalse(LoginKeeper.needsRefresh(creds(expiringIn: nil, now: now), now: now))
+        XCTAssertTrue(LoginKeeper.needsRefresh(creds(expiringIn: 120, now: now), now: now))
+        XCTAssertTrue(LoginKeeper.needsRefresh(creds(expiringIn: -60, now: now), now: now))
+    }
+
+    func testRequestIsHeadlessAndToolFree() {
+        let args = LoginKeeper.arguments
+        XCTAssertEqual(args.first, "-p")
+        XCTAssertTrue(args.contains("--strict-mcp-config"))
+        XCTAssertTrue(args.contains("--no-session-persistence"))
+        XCTAssertEqual(args[args.firstIndex(of: "--tools")! + 1], "")
+        XCTAssertEqual(args[args.firstIndex(of: "--setting-sources")! + 1], "project,local")
+    }
+}

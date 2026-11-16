@@ -27,7 +27,7 @@ A small native macOS menu bar app that shows how much of your Claude subscriptio
   - 🐦 **Way ahead:** you're heading for more than 1.5× the limit.
 - **Popover:** each limit with a progress bar, a tick showing how much of the window has elapsed, the reset time, and the pace. Bars turn amber from 70% and red from 90%.
 - **Per-model limits (optional):** turn on "Per-model limits" in Settings to also see each model's own weekly limit (e.g. Fable) as a row in the popover. Only models your plan actually limits appear.
-- **Settings:** what the menu bar shows, the pace animal, per-model limits, how often to check (default every 5 minutes), launch at login, and automatic updates.
+- **Settings:** what the menu bar shows, the pace animal, per-model limits, how often to check (default every 5 minutes), keeping Claude Code signed in, launch at login, and automatic updates.
 - Closes when you click away. ⌘R refreshes, ⌘, opens settings, ⌘Q quits.
 
 ## Requirements
@@ -90,7 +90,7 @@ claude "Build the macOS app described in SPEC.md. Follow it exactly, then run th
 
 - The app reads the OAuth token Claude Code saved in your Keychain (item `Claude Code-credentials`), through macOS's `security` tool, so there's no Keychain prompt. If Claude Code stores credentials in `~/.claude/.credentials.json` instead, it reads that.
 - It sends the token only to `https://api.anthropic.com/api/oauth/usage`, the same endpoint that powers the usage numbers in Claude Code.
-- It never refreshes or changes the token. If the token expires, run `claude` once.
+- It never refreshes or changes the token itself. To keep you signed in when you haven't used Claude Code for a while, it asks Claude Code to do it: shortly before the token expires (about every 8 hours) it runs one tiny headless request, `claude -p "Reply with just OK." --model haiku` with no tools, MCP servers, hooks or saved session, and Claude Code refreshes and saves its own login. That uses a few thousand Haiku tokens each time. Turn off **Keep Claude Code signed in** in Settings to stop it; then, if the token expires, run `claude` once.
 - It doesn't read your conversations, transcripts or any local files besides the credentials, and it stores nothing except its settings.
 - Update checks call the GitHub Releases API for this repository. You can turn them off in Settings.
 
