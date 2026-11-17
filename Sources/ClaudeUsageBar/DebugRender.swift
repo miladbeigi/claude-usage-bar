@@ -2,7 +2,7 @@
 import AppKit
 import SwiftUI
 
-/// `ClaudeUsageBar --render <dir> [--settings] [--models]` writes popover and menu bar images with sample data, then exits.
+/// `ClaudeUsageBar --render <dir> [--settings] [--models] [--scale N]` writes popover and menu bar images with sample data, then exits.
 @MainActor
 enum DebugRender {
     static func runIfRequested() -> Bool {
@@ -26,14 +26,28 @@ enum DebugRender {
         store.loadPreviewData()
         store.settingsOpen = args.contains("--settings")
 
+        // `--scale N` sets the pixel density of the popover images (default 1).
+        let scale = args.firstIndex(of: "--scale").flatMap { $0 + 1 < args.count ? Double(args[$0 + 1]) : nil } ?? 1
+
         for (name, scheme) in [("light", ColorScheme.light), ("dark", ColorScheme.dark)] {
-            NSApp.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
+            let appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
+            NSApp.appearance = appearance
             let view = PopoverView().environment(store)
                 .background(scheme == .dark ? Color(white: 0.16) : Color(white: 0.97))
                 .environment(\.colorScheme, scheme)
-            let renderer = ImageRenderer(content: view)
-            renderer.scale = 2
-            if let img = renderer.nsImage { write(img, to: dir.appending(path: "\(name).png")) }
+            // Drawn through an offscreen window rather than ImageRenderer so native controls
+            // (switches and pop-up menus) render as themselves instead of placeholders.
+            let host = NSHostingView(rootView: view)
+            host.appearance = appearance
+            host.setFrameSize(host.fittingSize)
+            let window = NSWindow(contentRect: host.frame, styleMask: .borderless, backing: .buffered, defer: false)
+            window.appearance = appearance
+            window.contentView = host
+            host.layoutSubtreeIfNeeded()
+            host.display()
+            if let rep = snapshot(host, scale: scale) {
+                try? rep.representation(using: .png, properties: [:])?.write(to: dir.appending(path: "\(name).png"))
+            }
         }
 
         // Menu bar image tinted white on a dark strip, like a dark menu bar.
@@ -52,6 +66,16 @@ enum DebugRender {
         }
         write(strip, to: dir.appending(path: "menubar.png"), scale: 3)
         exit(0)
+    }
+
+    private static func snapshot(_ view: NSView, scale: Double) -> NSBitmapImageRep? {
+        let size = view.bounds.size
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale), pixelsHigh: Int(size.height * scale),
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { return nil }
+        rep.size = size
+        view.cacheDisplay(in: view.bounds, to: rep)
+        return rep
     }
 
     private static func write(_ image: NSImage, to url: URL, scale: CGFloat = 1) {

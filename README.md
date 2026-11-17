@@ -94,6 +94,10 @@ claude "Build the macOS app described in SPEC.md. Follow it exactly, then run th
 - It doesn't read your conversations, transcripts or any local files besides the credentials, and it stores nothing except its settings.
 - Update checks call the GitHub Releases API for this repository. You can turn them off in Settings.
 
+<p align="center">
+  <img src="docs/settings-light.png" width="320" alt="Settings open in the popover, with Keep Claude Code signed in turned on">
+</p>
+
 ## Updates
 
 Every 6 hours (and on **Check now** in Settings) the app looks at this repository's latest GitHub release. If there's a newer version, an **Update** button appears in the header (and Settings shows "Version X.Y.Z is available" with its own **Update** button). Clicking either one downloads the zip, checks its SHA-256 against the `.sha256` file published with the release, swaps the app in place and relaunches.
@@ -118,7 +122,7 @@ The **CI** workflow runs the tests and builds the app on every push to `main` an
   swift build && .build/debug/ClaudeUsageBar --render docs
   ```
 
-  This writes `light.png`, `dark.png` and `menubar.png`. Add `--settings` to render with Settings open. Native controls (menus and switches) show up as placeholders in these renders.
+  This writes `light.png`, `dark.png` and `menubar.png`. Add `--settings` to render with Settings open, `--models` to show the per-model rows, and `--scale 2` (or 3) for sharper popover images. Switches are drawn as in an inactive window, so the ones that are on show grey rather than blue.
 
 ## License
 
