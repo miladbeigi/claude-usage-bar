@@ -96,7 +96,7 @@ claude "Build the macOS app described in SPEC.md. Follow it exactly, then run th
 
 ## Updates
 
-Every 6 hours (and on **Check now** in Settings) the app looks at this repository's latest GitHub release. If there's a newer version, an **Update to X.Y.Z** button appears in the header. Clicking it downloads the zip, checks its SHA-256 against the `.sha256` file published with the release, swaps the app in place and relaunches.
+Every 6 hours (and on **Check now** in Settings) the app looks at this repository's latest GitHub release. If there's a newer version, an **Update** button appears in the header (and Settings shows "Version X.Y.Z is available" with its own **Update** button). Clicking either one downloads the zip, checks its SHA-256 against the `.sha256` file published with the release, swaps the app in place and relaunches.
 
 The checksum confirms the download isn't corrupted; it isn't a signature. Anyone who can publish releases to the repository can ship an update.
 
